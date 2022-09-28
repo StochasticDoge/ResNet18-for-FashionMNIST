@@ -1,11 +1,12 @@
-import datetime
 import logging
-import time
 import os
+import time
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch import optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from torchvision import datasets
@@ -148,7 +149,7 @@ class FashionClassifier:
             results[name] = err
         return results
 
-    def train(self, n_epochs, optimizer, model, loss_fn):
+    def train(self, n_epochs, optimizer, lr_scheduler, model, loss_fn):
         start = time.time()
         res = dict()
         for n in range(1, n_epochs + 1):
@@ -168,21 +169,37 @@ class FashionClassifier:
             logger.info("Ep {}, time {:d}s, err(%) - {}: {:.1f}, {}: {:.1f}".format(
                 n, round(time.time() - start),
                 'train', 100 * errors['train'], 'test', 100 * errors['test']))
-            # TODO: adjust learning rate if the test error stalls
-            #  optimizer.param_groups[0]['lr']
+
+            lr_scheduler.step(errors['test'])
 
     def main(self, model_name, epochs, lr):
         model = MyResNet()
 
         opt = optim.SGD(model.parameters(), lr=lr)
+        lr_sched = ReduceLROnPlateau(opt, patience=25)
         self.train(
             n_epochs=epochs,
             optimizer=opt,
+            lr_scheduler=lr_sched,
             model=model,
             loss_fn=nn.CrossEntropyLoss(),
         )
         torch.save(model.state_dict(), model_name)
         return model
+
+
+def calculate_patience(df=None):
+    if df is not None:
+        df = pd.read_pickle(os.path.join(out_fpath, 'ver1', 'df'))
+    best = df['test'].iloc[0]
+    dist = [(1, best)]
+    for i, val in df['test'].items():
+        if val < best:
+            dist.append((i, val))
+            best = val
+    diffs = pd.Series([idx - dist[i][0]
+                       for i, (idx, val) in enumerate(dist[1:])])
+    return diffs, int(diffs.mean() + diffs.std())
 
 
 # TODO: Regularization
@@ -193,10 +210,9 @@ class FashionClassifier:
 # TODO: Compute train vs test accuracy depending on number of epochs
 def main():
     epochs = 1000
-    lr = 1e-2
+    lr = 1e-1
     mini_batch_sz = 256
     model = FashionClassifier(mini_batch_sz).main('myresnet1', epochs, lr)
-    res = analyze_results(model=model)
     return
 
 
