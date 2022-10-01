@@ -1,4 +1,3 @@
-import gc
 import logging
 import os
 import pickle
@@ -6,9 +5,9 @@ import time
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import sklearn.metrics as metrics
 import torch
 import torch.nn as nn
-import sklearn.metrics as metrics
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
@@ -76,6 +75,24 @@ def analyze_results(model=None, saved_mfile=None, channels=None):
         model = Net(training_data[0][0], channels)
         model.load_state_dict(torch.load(saved_mfile))
     return validate(model, train_loader, val_loader)
+
+
+def load_pickle(fname, subdir=None):
+    path = out_fpath
+    if subdir is not None:
+        path = os.path.join(path, subdir)
+    path = os.path.join(path, fname)
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+
+def pickle_obj(fname, obj, subdir=None):
+    path = out_fpath
+    if subdir is not None:
+        path = os.path.join(path, subdir)
+    path = os.path.join(path, fname)
+    with open(path, 'wb') as f:
+        pickle.dump(obj, f)
 
 
 class FashionClassifier:
@@ -205,8 +222,20 @@ class FashionClassifier:
             model=model,
             loss_fn=nn.CrossEntropyLoss(),
         )
-        torch.save(model.state_dict(), model_name)
-        return model
+        self.dump_results(model, res)
+        return model, res
+
+    def dump_results(self, model, res):
+        """
+        Save model's state, evaluation results and hyperparameters locally
+        """
+        pickle_obj('metrics', res, subdir=f'ver{self.ver}')
+        torch.save(model.state_dict(),
+                   os.path.join(out_fpath, f'ver{self.ver}', 'resnet'))
+        with open(os.path.join(out_fpath, f'ver{self.ver}', 'params.txt'),
+                  'wt') as f:
+            f.write(f"lr = {self.lr}\nepochs = {self.epochs}"
+                    f"\nmini_batch_sz = {self.mini_batch_sz}")
 
 
 def calculate_patience(df=None):
