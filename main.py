@@ -96,11 +96,13 @@ def pickle_obj(fname, obj, subdir=None):
 
 
 class FashionClassifier:
-    def __init__(self, epochs=500, lr=0.1, mini_batch_sz=256, version=1):
+    def __init__(self, epochs=500, lr=0.1, mini_batch_sz=256, version=1,
+                 skip_connect=True):
         self.epochs = epochs
         self.lr = lr
         self.mini_batch_sz = mini_batch_sz
         self.ver = version
+        self.skip_connect = skip_connect
         self._train_loader = None
         self._test_loader = None
 
@@ -179,7 +181,7 @@ class FashionClassifier:
             results[name] = (m, err, prec)
         return results
 
-    def train(self, n_epochs, optimizer, lr_scheduler, model, loss_fn):
+    def train(self, n_epochs, optimizer, model, loss_fn, lr_scheduler=None):
         start = time.time()
         res = dict()
         for n in range(1, n_epochs + 1):
@@ -210,7 +212,7 @@ class FashionClassifier:
         return model, res
 
     def main(self):
-        model = MyResNet()
+        model = MyResNet(skip_connect=self.skip_connect)
 
         opt = optim.SGD(model.parameters(), lr=self.lr,
                         weight_decay=1e-4, momentum=0.9)
@@ -262,7 +264,8 @@ def calculate_patience(df=None):
 #   - random rotation
 def main():
     fc = FashionClassifier(epochs=1000, lr=1e-1,
-                           mini_batch_sz=1024, version=3)
+                           mini_batch_sz=1024, version=3,
+                           skip_connect=False)
     fc.main()
 
 

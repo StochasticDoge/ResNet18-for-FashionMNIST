@@ -14,9 +14,10 @@ device = (torch.device('cuda') if torch.cuda.is_available()
 class ResBlock(nn.Module):
     relu = nn.ReLU()
 
-    def __init__(self, in_ch, block_ch, downsample=None):
+    def __init__(self, in_ch, block_ch, downsample=None, skip_connect=True):
         super().__init__()
         self.downsample = downsample
+        self.skip_connect = skip_connect
         if downsample:
             # TODO: Use a zero padding shortcut
             #  to reduce memory/time complexity
@@ -41,17 +42,21 @@ class ResBlock(nn.Module):
         x = self.conv2(x)
         x = self.bn2(x)
 
-        if self.downsample is not None:
+        if self.downsample is not None and self.skip_connect:
             orig_x = self.downsample(orig_x)
 
-        return self.relu(orig_x + x)
+        out = x
+        if self.skip_connect:
+            out = out + orig_x
+        return self.relu(out)
 
 
 class ResStage(nn.Module):
-    def __init__(self, in_ch, block_ch):
+    def __init__(self, in_ch, block_ch, skip_connect):
         super().__init__()
-        self.block1 = ResBlock(in_ch, block_ch, downsample=True)
-        self.block2 = ResBlock(block_ch, block_ch)
+        self.block1 = ResBlock(in_ch, block_ch, downsample=True,
+                               skip_connect=skip_connect)
+        self.block2 = ResBlock(block_ch, block_ch, skip_connect=skip_connect)
 
     def forward(self, x):
         x = self.block1(x)
@@ -62,8 +67,9 @@ class ResStage(nn.Module):
 class MyResNet(nn.Module):
     relu = nn.ReLU()
 
-    def __init__(self):
+    def __init__(self, skip_connect=True):
         super(MyResNet, self).__init__()
+        self.skip_connect = skip_connect
         self.stage1 = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2)),
             nn.BatchNorm2d(64),
@@ -72,10 +78,10 @@ class MyResNet(nn.Module):
         )
         self.stage1.to(device=device)
 
-        self.conv2_x = ResStage(64, 64)
-        self.conv3_x = ResStage(64, 128)
-        self.conv4_x = ResStage(128, 256)
-        self.conv5_x = ResStage(256, 512)
+        self.conv2_x = ResStage(64, 64, skip_connect)
+        self.conv3_x = ResStage(64, 128, skip_connect)
+        self.conv4_x = ResStage(128, 256, skip_connect)
+        self.conv5_x = ResStage(256, 512, skip_connect)
 
         # nn.AvgPool2d won't work because we need global average pooling
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
