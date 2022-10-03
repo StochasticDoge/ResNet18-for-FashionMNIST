@@ -214,13 +214,16 @@ class FashionClassifier:
 
         opt = optim.SGD(model.parameters(), lr=self.lr,
                         weight_decay=1e-4, momentum=0.9)
-        lr_sched = ReduceLROnPlateau(opt, patience=25)
+        lr_sched = ReduceLROnPlateau(opt, patience=25, min_lr=self.lr / 100)
+
+        # lr_sched = None
+        # opt = optim.Adam(model.parameters())
         model, res = self.train(
             n_epochs=self.epochs,
             optimizer=opt,
-            lr_scheduler=lr_sched,
             model=model,
             loss_fn=nn.CrossEntropyLoss(),
+            lr_scheduler=lr_sched,
         )
         self.dump_results(model, res)
         return model, res
